@@ -18,10 +18,11 @@ Parameters:
     Description: The ARN of the deployment role in the non production account.
     Type: String
 
-  # ProductionDeployRoleArn:
-  #   Description: The ARN of the deployment role in the production account.
-  #   Type: String
+  ProductionDeployRoleArn:
+    Description: The ARN of the deployment role in the production account.
+    Type: String
 
+  # TODO: Enable email notifications
   # NotificationEmail:
   #   Description: An email address that will be notified for manual approvals.
   #   Type: String
@@ -214,7 +215,6 @@ Resources:
                 - Name: SourceOutput
               OutputArtifacts:
                 - Name: PackagedTemplate
-        # TODO: Deploy any existing stacks using DELETE_ONLY
         - Name: DeployToStaging
           Actions:
             - Name: CreateChangeSet
@@ -253,9 +253,8 @@ Resources:
                 RoleArn: !Ref StagingDeployRoleArn
               OutputArtifacts:
                 - Name: StagingOutput
-        - Name: Approval
-          Actions:
-            - Name: Approve
+            - Name: Verify
+              RunOrder: 3
               ActionTypeId:
                 Category: Approval
                 Owner: AWS
@@ -263,7 +262,55 @@ Resources:
                 Version: 1
               # Configuration:
               #   NotificationArn: !Ref PipelineTopic
-              #   CustomData: !Sub "Do you want to deploy production stack ${ApplicationName}-production?"
+              #   CustomData: !Sub "Has the change been successfully applied to ${ApplicationName}-staging?"
+        - Name: DeployToProduction
+          Actions:
+            - Name: CreateChangeSet
+              RunOrder: 1
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CHANGE_SET_REPLACE
+                StackName: !Sub ${ApplicationName}-production
+                Capabilities: CAPABILITY_IAM
+                ChangeSetName: !Sub ${ApplicationName}-production-change-set
+                # TODO: Set parameters via one of following:
+                # ParameterOverrides:
+                #   ApplicationName: !Ref ApplicationName
+                # TemplateConfiguration: PackagedTemplate::configuration.json
+                TemplatePath: PackagedTemplate::packaged.yaml
+                RoleArn: !Ref ProductionDeployRoleArn
+              InputArtifacts:
+                - Name: PackagedTemplate
+            - Name: Approve
+              RunOrder: 2
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: 1
+              # Configuration:
+              #   NotificationArn: !Ref PipelineTopic
+              #   CustomData: !Sub "Should the change set be applied to ${ApplicationName}-production?"
+            - Name: DeployChangeSet
+              RunOrder: 3
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                StackName: !Sub ${ApplicationName}-production
+                Capabilities: CAPABILITY_IAM
+                ChangeSetName: !Sub ${ApplicationName}-production-change-set
+                OutputFileName: production-cloudformation-output.json
+                RoleArn: !Ref ProductionDeployRoleArn
+              OutputArtifacts:
+                - Name: ProductionOutput
 
 Outputs:
 
