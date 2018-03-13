@@ -1,0 +1,272 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: A CI/CD pipeline for a golang function.
+
+Parameters:
+
+  ApplicationName:
+    Description: The application name
+    Type: String
+
+  BranchName:
+    Description: The branch of code to build
+    Type: String
+    Default: master
+
+  StagingDeployRoleArn:
+    Description: The ARN of the deployment role in the non production account.
+    Type: String
+
+  # ProductionDeployRoleArn:
+  #   Description: The ARN of the deployment role in the production account.
+  #   Type: String
+
+  # NotificationEmail:
+  #   Description: An email address that will be notified for manual approvals.
+  #   Type: String
+
+Resources:
+
+  ArtifactStore:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+
+  DeploymentBucket:
+    Type: AWS::S3::Bucket
+
+  Repository:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryDescription: !Sub Code repository for ${ApplicationName}
+      RepositoryName: !Sub ${ApplicationName}-repository
+
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: CodePipelinePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # TODO: Lock this down
+              - Action:
+                  - s3:*
+                  - cloudformation:CreateStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DeleteStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:SetStackPolicy
+                  - iam:PassRole
+                Resource:
+                  - "*"
+                Effect: Allow
+              # - Action:
+              #     - sns:Publish
+              #   Resource:
+              #     - !Ref PipelineTopic
+              #   Effect: Allow
+              - Action:
+                  - codebuild:*
+                Resource:
+                  - !GetAtt BuildProject.Arn
+                Effect: Allow
+              - Action:
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt ArtifactStore.Arn
+                Effect: Allow
+              - Action:
+                  - s3:Get*
+                  - s3:Put*
+                Resource:
+                  - !Sub ${ArtifactStore.Arn}/*
+                Effect: Allow
+              - Action:
+                  - codecommit:CancelUploadArchive
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:GetUploadArchiveStatus
+                  - codecommit:UploadArchive
+                Resource:
+                  - !GetAtt Repository.Arn
+                Effect: Allow
+
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: ServiceRole
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CloudWatchLogsPolicy
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+              - Sid: CodeCommitPolicy
+                Effect: Allow
+                Action:
+                  - codecommit:GitPull
+                Resource: "*"
+              - Sid: S3PolicyArtifactStore
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                Resource:
+                  - !Sub ${ArtifactStore.Arn}/*
+              - Sid: S3PolicyDeploymentBucket
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                Resource:
+                  - !Sub ${DeploymentBucket.Arn}/*
+
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/golang:1.7.3
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+          - Name: S3_BUCKET
+            Type: PLAINTEXT
+            Value: !Ref DeploymentBucket
+      Name: !Sub ${ApplicationName}-project
+      ServiceRole: !GetAtt BuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+
+  # PipelineTopic:
+  #   Type: AWS::SNS::Topic
+  #   Properties:
+  #     Endpoint: !Ref NotificationEmail
+  #     Protocol: email
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !GetAtt PipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactStore
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Version: 1
+                Provider: CodeCommit
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                BranchName: !Ref BranchName
+                RepositoryName: !GetAtt Repository.Name
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: !Ref BuildProject
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: PackagedTemplate
+        # TODO: Deploy any existing stacks using DELETE_ONLY
+        - Name: DeployToStaging
+          Actions:
+            - Name: CreateChangeSet
+              RunOrder: 1
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CHANGE_SET_REPLACE
+                StackName: !Sub ${ApplicationName}-staging
+                Capabilities: CAPABILITY_IAM
+                ChangeSetName: !Sub ${ApplicationName}-staging-change-set
+                # TODO: Set parameters via one of following:
+                # ParameterOverrides:
+                #   ApplicationName: !Ref ApplicationName
+                # TemplateConfiguration: PackagedTemplate::configuration.json
+                TemplatePath: PackagedTemplate::packaged.yaml
+                RoleArn: !Ref StagingDeployRoleArn
+              InputArtifacts:
+                - Name: PackagedTemplate
+            - Name: DeployChangeSet
+              RunOrder: 2
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                StackName: !Sub ${ApplicationName}-staging
+                Capabilities: CAPABILITY_IAM
+                ChangeSetName: !Sub ${ApplicationName}-staging-change-set
+                OutputFileName: staging-cloudformation-output.json
+                RoleArn: !Ref StagingDeployRoleArn
+              OutputArtifacts:
+                - Name: StagingOutput
+        - Name: Approval
+          Actions:
+            - Name: Approve
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: 1
+              # Configuration:
+              #   NotificationArn: !Ref PipelineTopic
+              #   CustomData: !Sub "Do you want to deploy production stack ${ApplicationName}-production?"
+
+Outputs:
+
+  CloneUrlHttp:
+    Value: !GetAtt Repository.CloneUrlHttp
+    Description: The HTTP clone URL

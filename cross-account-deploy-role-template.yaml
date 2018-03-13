@@ -1,0 +1,74 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: Deploy account resources.
+
+Parameters:
+
+  ApplicationName:
+    Description: The application name.
+    Type: String
+
+  BuildAccountId:
+    Description: The account id for the build pipeline.
+    Type: String
+
+Resources:
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - !Ref BuildAccountId
+              # TODO: Is Service required? Maybe for same-account deploys?
+              Service:
+                - cloudformation.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: DeployRolePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                  # TODO: Lock this down
+                  - s3:*
+                  - iam:*
+                  - lambda:*
+                  - apigateway:*
+                  - cloudformation:CreateStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DeleteStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:SetStackPolicy
+                Resource:
+                  # TODO: Generate stack ARN?
+                  - "*"
+                Effect: Allow
+              # FIXME: Cannot specify ArtifactStoreBucket here - cirular dep.
+              # - Action:
+              #     - s3:ListBucket
+              #   Resource:
+              #     - !Sub arn:aws:s3:::${ArtifactStoreBucket}
+              #   Effect: Allow
+              # - Action:
+              #     - s3:Get*
+              #   Resource:
+              #     - !Sub arn:aws:s3:::${ArtifactStoreBucket}/*
+              #   Effect: Allow
+
+Outputs:
+
+  DeployRoleArn:
+    Value: !GetAtt DeployRole.Arn
+    Description: The role ARN to use in the pipeline

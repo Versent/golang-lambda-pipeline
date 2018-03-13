@@ -1,0 +1,41 @@
+---
+version: 0.2
+
+# These variables must be provided via CloudFormation:
+# S3_BUCKET: Will be set to DeploymentBucket
+env:
+  variables:
+    SRC_DIR: /go/src/handler
+
+phases:
+  install:
+    commands:
+      # Debugging
+      - env | sort
+      # Work inside GOPATH
+      - ln -s ${CODEBUILD_SRC_DIR} ${SRC_DIR}
+      - cd ${SRC_DIR}
+      # Debugging
+      - pwd
+      - find .
+      # Install CI dependencies
+      - make install
+
+  pre_build:
+    commands:
+      # Runs megacheck
+      - make lint
+      # Run all tests included with the application
+      - make test
+
+  build:
+    commands:
+      # Build the go application
+      - make build
+      # Package the application with AWS SAM using $S3_BUCKET
+      - make package
+
+artifacts:
+  files:
+    - main
+    - packaged.yaml
