@@ -78,9 +78,11 @@ This high-level diagram represents the resources that are created by the
    `buildspec.yaml`)
 1. Build artefacts are packaged and stored for deployment in S3 using `aws
    cloudformation package`
-1. The application is automatically deployed to the staging environment
-1. The change must be manually approved
-1. The same packages are used to deploy the application to production
+1. The change set is automatically deployed to the staging environment stack
+1. The change must be manually approved before anything is deployed to
+   production
+1. The change set is applied to the production stack, and must then be approved
+   *again* before it is deployed
 
 ### Deploy Account
 
@@ -101,15 +103,15 @@ The following resources are created and referenced in the deploy accounts:
 
 ## To Do
 
-* GitHub.com PRIVATE repo - confirm location of checkout
-* Cross-account deployment
-* Run in local CodeBuild container
+* Support GitHub.com repo (public and/or private)
+* Verify cross-account deployment
 * Set parameters in application stack
 
 ### Later
 
 * `sam-local`
 * S3 SSE using KMS.
+* Run in local CodeBuild container
 * Split in to layers? e.g. IAM, buckets, etc
 * Deploy notification e.g. Slack, email, etc
 * Tags via Template Configuration file
