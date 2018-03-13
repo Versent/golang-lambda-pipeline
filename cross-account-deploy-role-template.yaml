@@ -37,11 +37,12 @@ Resources:
             Version: "2012-10-17"
             Statement:
               - Action:
-                  # TODO: Lock this down
-                  - s3:*
+                  # TODO: Tighten permissions
                   - iam:*
                   - lambda:*
                   - apigateway:*
+                  - s3:Get*
+                  - s3:ListBucket
                   - cloudformation:CreateStack
                   - cloudformation:DescribeStacks
                   - cloudformation:DeleteStack
@@ -52,20 +53,8 @@ Resources:
                   - cloudformation:DescribeChangeSet
                   - cloudformation:SetStackPolicy
                 Resource:
-                  # TODO: Generate stack ARN?
                   - "*"
                 Effect: Allow
-              # FIXME: Cannot specify ArtifactStoreBucket here - cirular dep.
-              # - Action:
-              #     - s3:ListBucket
-              #   Resource:
-              #     - !Sub arn:aws:s3:::${ArtifactStoreBucket}
-              #   Effect: Allow
-              # - Action:
-              #     - s3:Get*
-              #   Resource:
-              #     - !Sub arn:aws:s3:::${ArtifactStoreBucket}/*
-              #   Effect: Allow
 
 Outputs:
 
