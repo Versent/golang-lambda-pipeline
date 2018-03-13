@@ -1,6 +1,7 @@
 # Golang Lambda Pipeline
 
-This repository contains a serverless application, and multi-stage pipeline to perform CI/CD on it.
+This repository contains a serverless application, and multi-stage pipeline to
+perform CI/CD on it.
 
 ## Setup
 
@@ -14,6 +15,10 @@ This repository contains a serverless application, and multi-stage pipeline to p
    deployment to the staging account.
 1. Approve the deployment to the production account.
 1. Profit!
+
+Note that the build, staging, and production accounts do not have to be
+separate accounts (e.g. the same deployment role can be used for both the
+staging and production stages, and they can all be in the same account).
 
 ## Resources
 
