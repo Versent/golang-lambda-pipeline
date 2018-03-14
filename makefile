@@ -31,8 +31,8 @@ lint: install
 	# megacheck -go $(VERSION)
 	golint -set_exit_status
 
-main: ./cmd/main.go
-	go build -o $(OUTPUT) ./cmd/main.go
+main: ./bin/main.go
+	go build -o $(OUTPUT) ./bin/main.go
 
 # compile the code to run in Lambda (local or real)
 .PHONY: lambda
