@@ -32,7 +32,7 @@ lint: install
 	golint -set_exit_status
 
 main: main.go
-	go build -o $(OUTPUT) main.go
+	go build -o $(OUTPUT) ./cmd/main.go
 
 # compile the code to run in Lambda (local or real)
 .PHONY: lambda
