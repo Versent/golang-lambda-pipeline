@@ -18,15 +18,14 @@ account, passing the deploy role ARNs and other parameters.
 1. Manually approve the deployment in to the production account.
 1. Profit!
 
-### Accounts
+## Accounts
 
 Multiple accounts are used so that:
 
 * Blast radius is limited. Issues in the deploy accounts cannot impact other
   deploy accounts.
 * No runtime dependencies on the pipeline. The pipeline resources (and the
-  associated resources in the build and deploy accounts) can be removed without
-impacting the running application.
+  associated resources) can be removed without impacting the running application.
 
 While multiple accounts are part of the architecture, nothing is stopping you
 from using _less_ accounts - just supply the same Account Id in multiple
@@ -34,24 +33,36 @@ locations (e.g. when the pipeline and repo are in the production account). The
 same deployment role can be used for both the staging and production stages,
 and they can all be in the same account.
 
-## CloudFormation Templates
+### Recommended
 
-### Sample SAM Application
+The recommend deployment pattern is a "pipline in production" approach This is
+based on the reasoning that anything that can modify production, **is
+production**:
 
-A demo [serverless application (using AWS SAM)](template.yaml) template is
+![Pipeline in production](diagrams/account-options-production.png)
+
+### Alternative
+
+Some setups involve the idea of a "build" environment, which is a
+production-like environment that is separate from the application's production
+environment (usually for administrative reasons).
+
+![Pipeline in build](diagrams/account-options-build.png)
+
+This approach can also work, as long as appropriate controls are in place on
+the build environment:
+
+## Application
+
+### SAM Template
+
+A [serverless application (using AWS SAM)](template.yaml) template is
 included to simulate a real-world application.  The application consists of a
 `golang` Lambda function (with tests), and API Gateway endpoint.
 
 The application's build is managed via a CodeBuild
 [`buildspec.yaml`](buildspec.yaml) file. All of the tasks are managed via
 [`make`](makefile).
-
-## Accounts
-
-### Build Account
-
-The build account hosts the pipeline, and must have access (via cross-account
-roles) to the deploy accounts.
 
 ### Deploy Accounts
 
