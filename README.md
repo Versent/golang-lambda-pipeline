@@ -39,7 +39,7 @@ The recommend deployment pattern is a "pipline in production" approach This is
 based on the reasoning that anything that can modify production, **is
 production**:
 
-![Pipeline in production](diagrams/account-options-production.png | width=200)
+![Pipeline in production](diagrams/account-options-production.png)
 
 ### Alternative
 
