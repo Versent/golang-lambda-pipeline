@@ -39,7 +39,7 @@ The recommend deployment pattern is a "pipline in production" approach This is
 based on the reasoning that anything that can modify production, **is
 production**:
 
-![Pipeline in production](diagrams/account-options-production.png)
+<img src="diagrams/account-options-production.png" width="200" />
 
 ### Alternative
 
@@ -47,7 +47,7 @@ Some setups involve the idea of a "build" environment, which is a
 production-like environment that is separate from the application's production
 environment (usually for administrative reasons).
 
-![Pipeline in build](diagrams/account-options-build.png)
+<img src="diagrams/account-options-build.png" width="200" />
 
 This approach can also work, as long as appropriate controls are in place on
 the build environment:
